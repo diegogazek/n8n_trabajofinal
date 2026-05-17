@@ -1,0 +1,730 @@
+{
+  "name": "Trabajo Final - Clasificacion email por IA",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "id": "cd1716bc-c968-49fd-bb54-a204143fd692",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "position": [
+        -128,
+        224
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kDQ5K5lXWJnSE20Q",
+          "name": "Gmail OAuth2 API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "label",
+        "returnAll": true
+      },
+      "id": "a0021bfa-92ef-4a37-a8e1-333faf75c793",
+      "name": "Get Gmail Labels",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        16,
+        224
+      ],
+      "webhookId": "9c24468a-cf62-4cdd-bc64-eb92b9548b29",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kDQ5K5lXWJnSE20Q",
+          "name": "Gmail OAuth2 API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $('Gmail Trigger').first().json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "id": "195089ff-27c0-4464-a05e-1cc7b93b1fc7",
+      "name": "Get Email Content",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        176,
+        224
+      ],
+      "webhookId": "2942d960-47df-417f-b3d9-d7b6c565ea92",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kDQ5K5lXWJnSE20Q",
+          "name": "Gmail OAuth2 API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recuperar email y etiquetas\nconst emailData = $('Get Email Content').first().json;\nconst allLabels = $('Get Gmail Labels').all().map(item => item.json);\n\n// Filtrar las etiquetas de sistema\nconst systemLabels = ['INBOX', 'SENT', 'DRAFT', 'SPAM', 'TRASH', 'IMPORTANT', 'STARRED'];\nconst userLabels = allLabels.filter(label => \n  !systemLabels.includes(label.name.toUpperCase())\n);\n\n// Crear lista de etiquetas formateada\nconst labelsList = userLabels.map(label => `- ${label.name}`).join('\\n');\n\n// preparar el contenido del email\nconst emailContent = emailData.text || emailData.body || emailData.snippet || 'No hay contenido disponible';\n\n// Crear el prompt final MULTI-LABELS\nconst prompt = `Analyze this email and choose the BEST LABELS (1 to 3 maximum) from those available:\n\nEMAIL to analyze :\nDe: ${emailData.from}\nSubject: ${emailData.subject}\nBody: ${emailContent}\n\nAVAILABLE LABELS :\nBILLING\nSALES\nSUPPORT\nOTHER\n\nINSTRUCTIONS :\n1. Analyze the content and context of the email.\n2. Choose the MOST APPROPRIATE label from the list (only one).\n3. Prioritize quality over quantity; if a single label fits perfectly, use only one.\n4. Select labels in order of relevance.\n\nRespond in JSON with the list of chosen labels: {\"labels\": [\"label1\"]}`;\n\nconsole.log('Multi-label prompt created:', prompt);\nconsole.log('Available Labels:', userLabels.map(l => l.name));\n\nreturn [{\n  json: {\n    prompt: prompt,\n    email: emailData,\n    labels: allLabels,\n    userLabels: userLabels\n  }\n}];"
+      },
+      "id": "7fdcff5a-caa8-4962-a2f7-39e6d0f73c3c",
+      "name": "Prepare Prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        384,
+        224
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "637b38c7-5285-4ff9-bb34-45735d60afe2",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        608,
+        384
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "HSBl6jsqDv4ViaLb",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}"
+      },
+      "id": "46578b1d-7a29-4afa-8b54-8be4bacb4fca",
+      "name": "GPT‑4o‑mini Label Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        608,
+        224
+      ],
+      "typeVersion": 1.5,
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "📧 Lectura de Buzon de Correos\n• Revisar cada minuto\n• Triggers cuando llegan nuevos correos\n",
+        "height": 480,
+        "width": 516,
+        "color": 2
+      },
+      "id": "c3d0f49b-e93c-44f7-a8e6-92d608fbfbdc",
+      "name": "📧 TRIGGER",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -192,
+        -96
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "AI ANALIZA CONTEXTO CATEGORIZA\n• Prompt optimizado para seleccionar entre 3 categorias\n• Se usa GPT-4o-mini para optimizar costos\n• Respuesta en JSON\n• Realiza analisis contextual del email para categorizar",
+        "height": 608,
+        "width": 430,
+        "color": 3
+      },
+      "id": "45a152f3-fec2-4529-afd3-5f4cc452913d",
+      "name": "🤖 AI INTELLIGENCE",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        544,
+        -96
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "PREPARACION PROMPT\n• Prompt en Ingles\n• Respuesta como JSON\n• Optimizado para AI\n• Provee todo el correo\n• Limita a unica repuesta",
+        "height": 480,
+        "width": 216,
+        "color": 4
+      },
+      "id": "59190868-6a78-4eba-8b07-43a9992913c0",
+      "name": "⚙️ PROCESSING",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        320,
+        -96
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "CANALIZACION DE SALIDA\n• Mediante Switch se deriva al destino correcto\n• Fallback si no detecta AI dentro de las categorias\n• Evita duplicaciones",
+        "height": 480,
+        "width": 260,
+        "color": 5
+      },
+      "id": "5d702d50-132a-485e-925c-425214bc3021",
+      "name": "🔧 PARSING",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        976,
+        -96
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "REGISTRACION SEGUN CLASIFICACION\n• Si es de ventas generar un LEAD en Datatable\n• Si es soporte genera Ticket en JIRA SOPORTE\n• Si es ventas genera Ticket en TPFinal\n• Si es Otros genera Ticket en Recepcion",
+        "height": 784,
+        "width": 360,
+        "color": 6
+      },
+      "id": "3eea69fe-785e-495f-b170-cf1ffc8dad8e",
+      "name": "✅ APPLICATION",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1232,
+        -96
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "{\"labels\": [\"BILLING\"]}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b1782462-7d56-4468-9489-e53fb3b70e1f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BILLING"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4b63975d-5486-4638-a443-e7ef57995f9c",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "{\"labels\": [\"SALES\"]}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SALES"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d97b4809-bea6-4229-bd68-470934067f9f",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "{\"labels\": [\"SUPPORT\"]}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SUPPORT"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1072,
+        192
+      ],
+      "id": "199528d4-d92c-4e7c-98b0-db3be324e19a",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "10000",
+          "mode": "list",
+          "cachedResultName": "TPFinal"
+        },
+        "issueType": {
+          "__rl": true,
+          "value": "10001",
+          "mode": "list",
+          "cachedResultName": "Tarea"
+        },
+        "summary": "={{ $('Get Email Content').item.json.headers.subject }}",
+        "additionalFields": {
+          "description": "={{ $('Get Email Content').item.json.html }}"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        16
+      ],
+      "id": "585d4d7e-2e6d-4ac4-9dd0-7b398658a237",
+      "name": "Issue JIRA Adiministracion",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "HT4ji7mThha6MT3J",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "HX52YyJZJodgYHvQ",
+          "mode": "list",
+          "cachedResultName": "TPF_LEADS",
+          "cachedResultUrl": "/projects/lPJ8aZUhrZBDsiOB/datatables/HX52YyJZJodgYHvQ"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $('Get Email Content').item.json.headers.from }}",
+            "asunto": "={{ $('Get Email Content').item.json.headers.subject }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "asunto",
+              "displayName": "asunto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "contenido",
+              "displayName": "contenido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1328,
+        192
+      ],
+      "id": "d1f80917-4e8b-4ee3-b773-f23cc7491008",
+      "name": "Crear Lead"
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "10001",
+          "mode": "list",
+          "cachedResultName": "Soporte"
+        },
+        "issueType": {
+          "__rl": true,
+          "value": "10001",
+          "mode": "list",
+          "cachedResultName": "Tarea"
+        },
+        "summary": "={{ $('Get Email Content').item.json.headers.subject }}",
+        "additionalFields": {
+          "description": "={{ $('Get Email Content').item.json.html }}"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        352
+      ],
+      "id": "d558e814-2579-41d5-bbfb-3f1f30d8b116",
+      "name": "Issue JIRA Soporte",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "HT4ji7mThha6MT3J",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "10002",
+          "mode": "list",
+          "cachedResultName": "Recepcion"
+        },
+        "issueType": {
+          "__rl": true,
+          "value": "10001",
+          "mode": "list",
+          "cachedResultName": "Tarea"
+        },
+        "summary": "={{ $('Get Email Content').item.json.headers.subject }}",
+        "additionalFields": {
+          "description": "={{ $('Get Email Content').item.json.html }}"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        544
+      ],
+      "id": "9efd865e-3298-4881-a43c-84fa72958b81",
+      "name": "Issue JIRA Recepción",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "HT4ji7mThha6MT3J",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "ilrnLKXXAyUBuIrX",
+          "mode": "list",
+          "cachedResultName": "TPF_LOGS",
+          "cachedResultUrl": "/projects/lPJ8aZUhrZBDsiOB/datatables/ilrnLKXXAyUBuIrX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LogTipo": "GMAIL",
+            "LogDetalle": "Error de Conexion a cuenta"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "LogTipo",
+              "displayName": "LogTipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "LogDetalle",
+              "displayName": "LogDetalle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        352,
+        656
+      ],
+      "id": "1fcf4822-1e34-4582-badf-3741f565f78a",
+      "name": "Log Error Gmail"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "ilrnLKXXAyUBuIrX",
+          "mode": "list",
+          "cachedResultName": "TPF_LOGS",
+          "cachedResultUrl": "/projects/lPJ8aZUhrZBDsiOB/datatables/ilrnLKXXAyUBuIrX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LogTipo": "GMAIL",
+            "LogDetalle": "Error de Conexion a cuenta"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "LogTipo",
+              "displayName": "LogTipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "LogDetalle",
+              "displayName": "LogDetalle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        640
+      ],
+      "id": "000cbf9d-a428-423e-9167-b9663890f7ca",
+      "name": "Log Error ChatGPT"
+    },
+    {
+      "parameters": {
+        "content": "REGISTRACION LOGS",
+        "height": 240,
+        "width": 936,
+        "color": "#B30505"
+      },
+      "id": "e488525c-ea9e-4be4-8dcd-3470c5d09030",
+      "name": "⚙️ PROCESSING1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        272,
+        560
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Gmail Labels",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt": {
+      "main": [
+        [
+          {
+            "node": "GPT‑4o‑mini Label Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Gmail Labels": {
+      "main": [
+        [
+          {
+            "node": "Get Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email Content": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT‑4o‑mini Label Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GPT‑4o‑mini Label Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Issue JIRA Adiministracion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Issue JIRA Soporte",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Issue JIRA Recepción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8eaa98bf-b780-482b-ad13-2dc67b8b2d16",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "450bd5422b15908378e38035f50daa12809ad2895e0a306585e6aa368713ed3e"
+  },
+  "id": "50JGXfUzrxhr7lz1",
+  "tags": []
+}
